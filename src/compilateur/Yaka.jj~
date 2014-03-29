@@ -1,0 +1,358 @@
+
+options{
+	JDK_VERSION="1.5";	
+}
+
+PARSER_BEGIN(Yaka)
+
+package compilateur;
+
+public class Yaka implements Constantes {
+
+    public static Declaration decl;
+    public static TabIdent tabIdent;
+    public static Expression expr;
+    public static YVM yvm;
+    public static String nomVarTemp="";
+
+  public static void main(String args[]) { 
+    Yaka analyseur;
+    java.io.InputStream input;
+
+    if (args.length==1) {
+      System.out.print(args[args.length-1] + ": ");
+      try {
+        input = new java.io.FileInputStream(args[args.length-1]+".yaka");
+      } catch (java.io.FileNotFoundException e) {
+        System.out.println("Fichier introuvable.");
+        return;
+      }
+    } else if (args.length==0) {
+      System.out.println("Lecture sur l'entree standard...");
+      input = System.in;
+    } else {
+      System.out.println("Usage: java Gram [fichier]");
+      return;
+    }
+    try {
+      tabIdent = new TabIdent();
+      decl = new Declaration(tabIdent);
+      expr = new Expression(tabIdent);
+      analyseur = new Yaka(input);
+      yvm = new YVMasm(args[args.length-1]);
+      analyseur.analyse();
+      System.out.println("analyse syntaxique reussie!");
+    } catch (ParseException e) {
+      String msg = e.getMessage();
+      msg = msg.substring(0,msg.indexOf("\n"));
+      System.out.println("Erreur de syntaxe : "+msg);
+    }
+  } 
+}
+
+PARSER_END(Yaka)
+/***************************************/
+/********** TOKEN DEFINITIONS **********/
+/***************************************/
+
+TOKEN_MGR_DECLS :
+{public static String identLu,chaineLue;
+ public static int entierLu,opLu;}
+
+/*** Skip whitespace and comments ***/
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "(*"   : IN_COMMENT
+}
+<IN_COMMENT> MORE:
+{
+  < ~[] >
+}
+<IN_COMMENT> SKIP:
+{
+   < "*)" >  {SwitchTo(DEFAULT);} 
+}
+
+
+/* Mots reserves*/
+
+TOKEN :
+{
+  < BOOLEEN: "BOOLEEN" >
+| < VAR: "VAR" >
+| < FAIRE: "FAIRE" >
+| < SINON: "SINON" >
+| < POUR: "POUR" >
+| < SI: "SI" >
+| < FSI: "FSI">
+| < ENT: "ENTIER" >
+| < RETOURNE: "RETOURNE" >
+| < TRUE: "VRAI" >
+| < TANTQUE: "TANTQUE" >
+| <CONST : "CONST">
+| <FALSE : "FAUX">
+| <FAIT : "FAIT">
+| <OR : "OU">
+| <AND : "ET">
+| <NON : "NON">
+| <FONCTION : "FONCTION">
+| <FFONCTION  : "FFONCTION">
+| <PROGRAMME : "PROGRAMME" >
+| <FPROGRAMME: "FPROGRAMME" >
+| <PRINCIPAL : "PRINCIPAL">
+| <FPRINCIPAL : "FPRINCIPAL">
+| <ALORS : "ALORS">
+| <ECRIRE : "ECRIRE">
+| <LIRE : "LIRE">
+| <ALALIGNE : "ALALIGNE">
+
+}
+
+
+
+/*** unites de base nombres, idents,  strings ***/
+TOKEN  :
+{
+  < #chiffre : ["0"-"9"] >
+| < entier : (<chiffre>)+ > 
+	{ entierLu = Integer.parseInt(image.toString());
+        }
+| < #lettre: ["A"-"Z","a"-"z"] >
+| < ident : <lettre> (<lettre> | <chiffre>)* >
+	{identLu =image.toString();	
+	}
+| < chaine : "\"" (~["\""])* "\"" | "'" (~["'"])* "'" >
+	{ chaineLue = image.toString();
+	 }
+}
+
+
+/**************************************/
+/********debut de la grammaire ********/
+/**************************************/
+void analyse() : {}
+{
+   <PROGRAMME> {yvm.entete();} <ident>
+   <FPROGRAMME>
+   {yvm.queue();}
+   
+}
+
+void bloc() : {}{
+ (declConst())*
+ (declVar())* {yvm.ouvreBloc(tabIdent.nombreVariable()*2);}		
+   suiteInstr() 
+}
+
+void declConst() : {}
+{
+  <CONST>  defConst() ( "," defConst())* ";"
+}
+
+void defConst() : {}
+{
+  <ident> 	  	
+   "=" valConst()
+}
+
+void valConst() : {String id = YakaTokenManager.identLu;}
+{
+  <entier> {
+  decl.ajoutConstEntier(id,YakaTokenManager.entierLu,token); 
+  yvm.iconst(YakaTokenManager.entierLu);
+  } 		
+ | <ident> {
+ decl.ajoutConstIdent(id,YakaTokenManager.identLu,token);
+ yvm.iconst(tabIdent.getValeurIdent(id,token));
+ } 		
+ | <TRUE> {
+ decl.ajoutConstBool(id,VRAI,token);
+ yvm.iconst(VRAI);
+ }		
+ | <FALSE> {
+ decl.ajoutConstBool(id,FAUX,token);
+ yvm.iconst(FAUX);
+ }		
+}
+
+void declVar() : {}
+{
+  <VAR> type()	
+  <ident>	{
+  decl.ajoutVariable(YakaTokenManager.identLu,token);
+  }	
+  ("," 
+      <ident> {
+      decl.ajoutVariable(YakaTokenManager.identLu,token);
+      }	 
+  )* ";"
+}
+
+void type() :{}
+{
+   <ENT> 	{decl.definirTypeVar(ENTIER);fonc.setTypeRetour(ENTIER);}		
+ | <BOOLEEN>	{decl.definirTypeVar(BOOLEAN);fonc.setTypeRetour(BOOLEAN);}	
+}
+/*
+ * Syntaxe des instructions.
+ */
+void suiteInstr() : {}
+{
+	instruction()
+	(";" {expr.clear();}  
+	  (instruction())?
+	)*
+}
+
+void instruction() : {}
+{
+	affectation() | lecture() | ecriture()
+}
+
+/*
+ *affectation
+ */
+void affectation() : {}
+{
+	 <ident>
+	 { nomVarTemp = YakaTokenManager.identLu;}
+
+	   "=" expression()
+
+	 {    
+	    yvm.istore(tabIdent.getValeurIdent(nomVarTemp,token));
+	 	expr.controleAffectation(nomVarTemp,token);
+	 }
+}
+
+void lecture() : {}
+{
+	<LIRE> "(" <ident> ")"
+	{
+	  yvm.lireEnt(tabIdent.getValeurIdent(YakaTokenManager.identLu,token));
+	}
+}
+void ecriture()  : {}
+{
+	<ECRIRE> "(" (expression()
+		{if (expr.getSommetTypes() == Constantes.BOOLEAN)
+		{yvm.ecrireBool();} else {yvm.ecrireEnt();}
+		} 
+	| {yvm.ecrireChaine(YakaTokenManager.chaineLue);} <chaine>) ")"
+	| <ALALIGNE> {yvm.aLaLigne();}
+}
+
+/*
+ * Expression .
+ */
+void expression() : {}
+{
+  simpleExpr() 
+  (opRel() 
+  simpleExpr() {yvm.operation(expr.getSommetOp()); expr.operation(token);} )?
+}
+
+void simpleExpr() : {}
+{
+   terme() 
+   (opAdd() 
+   terme()	{ yvm.operation(expr.getSommetOp()); expr.operation(token); } )*
+} 
+void terme() : {}
+{
+  facteur() 
+  (opMul() 
+  facteur()	{
+	yvm.operation(expr.getSommetOp());
+  expr.operation(token);
+    }
+  )*
+}
+void facteur() : {}
+{   primaire() 
+  |  opNeg() primaire() {yvm.operation(expr.getSommetOp());expr.operation(token);} 
+}
+
+void primaire (): {}
+{
+   valeur()
+ | "(" expression() ")" 
+ 
+}
+
+void valeur () : {}
+{ <entier> {
+  expr.empilerEnt(YakaTokenManager.entierLu); 
+  yvm.iconst(YakaTokenManager.entierLu);
+  } 		
+ | <ident> 
+	 {
+	   	
+		 Ident i = tabIdent.chercheIdent(YakaTokenManager.identLu);
+
+		 if (i!=null)
+		 {
+		 	switch(i.getForme())
+		 	{
+		 		case Ident.CONST:
+			 		yvm.iconst(i.getValeur());		 		
+		 		break;
+		 		
+		 		case Ident.VAR:
+		 			yvm.iload(i.getValeur());
+		 	
+		 	}		 
+			 expr.empilerIdent(YakaTokenManager.identLu,token);
+		 }
+		 else
+		 {
+		 	expr.empilerType(ERROR);
+		 	System.out.println("Erreur (l."+token.beginLine+"): l'identifiant "+YakaTokenManager.identLu+" n'est pas declare.");
+		 }
+		 
+	 }
+ 	
+ | <TRUE> {
+ expr.empilerBool(VRAI);
+ yvm.iconst(VRAI);
+ }		
+ | <FALSE> {
+ expr.empilerBool(FAUX);
+ yvm.iconst(FAUX);
+ }	
+}
+
+void opRel() : {}
+{
+   "=" 	{expr.empilerOperation(EGAL);}	
+ | "<>" {expr.empilerOperation(NEGAL);}		
+ | "<" 	{expr.empilerOperation(INF);}		
+ | "<=" {expr.empilerOperation(INFEG);}		
+ | ">" 	{expr.empilerOperation(SUP);}		
+ | ">=" {expr.empilerOperation(SUPEG);}		
+} 
+
+void opAdd() : {}
+{
+    "+"	{expr.empilerOperation(PLUS);}		
+  |  "-"  {expr.empilerOperation(MOINS);}	
+  | <OR> 	{expr.empilerOperation(OU);}	
+}
+
+void opMul() : {}
+{
+  "*"	{expr.empilerOperation(MUL);}		
+  | "/"		{expr.empilerOperation(DIV);}	
+  | <AND>	{expr.empilerOperation(ET);}	
+} 
+
+void opNeg() : {}
+{ "-" {expr.empilerOperation(NEG);}	
+ | <NON>
+ {expr.empilerOperation(NOT);}	
+
+}
