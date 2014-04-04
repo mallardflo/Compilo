@@ -301,5 +301,19 @@ public class YVMasm extends YVM {
 		Ecriture.ecrireStringln(o,"debut:");
 		Ecriture.ecrireStringln(o,"STARTUPCODE");	
 	}
+	
+	public void iffaux() {
+		Ecriture.ecrireString(o,"; ");
+		super.iffaux();
+		Ecriture.ecrireStringln(o, "pop ax");
+		Ecriture.ecrireStringln(o, "cmp ax,0");
+		Ecriture.ecrireStringln(o, "je "+structureConditionnelleActuelle.getEtiquetteSuivante());
+	}
+		
+	public void fait() {
+		Ecriture.ecrireStringln(o, ";goto "+iterations.getEtiquetteDebut());
+		Ecriture.ecrireStringln(o, "jmp "+iterations.getEtiquetteDebut()+"\n");
+		Ecriture.ecrireStringln(o, iterations.getEtiquetteFinAndFinish()+ ":");
+	}
 
 }

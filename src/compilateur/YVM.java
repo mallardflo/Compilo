@@ -3,7 +3,9 @@ import java.io.OutputStream;
 
 public class YVM implements Constantes {
 	protected OutputStream o;
-
+	protected Iteration iterations = new Iteration();
+	protected Etiquette structureConditionnelleActuelle;
+	
 	public YVM(String nomFich) {
 		o = Ecriture.ouvrir(nomFich+".yvm");
 	}
@@ -195,4 +197,21 @@ public class YVM implements Constantes {
 				break;
 		}
 	}
+
+	public void tantque() {
+		iterations.nouvelleIteration();
+		structureConditionnelleActuelle = iterations;
+		Ecriture.ecrireStringln(o, iterations.getEtiquetteDebut()+":");
+	}
+	
+	public void iffaux() {
+		Ecriture.ecrireStringln(o, "iffaux "+structureConditionnelleActuelle.getEtiquetteSuivante());
+	}
+		
+	public void fait() {
+		Ecriture.ecrireStringln(o, "goto "+iterations.getEtiquetteDebut());
+		Ecriture.ecrireStringln(o,"");
+		Ecriture.ecrireStringln(o, iterations.getEtiquetteFinAndFinish()+ ":");
+	}
+	
 }

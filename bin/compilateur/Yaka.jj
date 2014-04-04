@@ -84,33 +84,33 @@ SKIP :
 
 TOKEN :
 {
-  < BOOLEEN: "BOOLEEN" >
-| < VAR: "VAR" >
-| < FAIRE: "FAIRE" >
-| < SINON: "SINON" >
-| < POUR: "POUR" >
-| < SI: "SI" >
-| < FSI: "FSI">
-| < ENT: "ENTIER" >
-| < RETOURNE: "RETOURNE" >
-| < TRUE: "VRAI" >
-| < TANTQUE: "TANTQUE" >
-| <CONST : "CONST">
-| <FALSE : "FAUX">
-| <FAIT : "FAIT">
-| <OR : "OU">
-| <AND : "ET">
-| <NON : "NON">
-| <FONCTION : "FONCTION">
-| <FFONCTION  : "FFONCTION">
-| <PROGRAMME : "PROGRAMME" >
+  <BOOLEEN: "BOOLEEN" >
+| <VAR: "VAR" >
+| <FAIRE: "FAIRE" >
+| <SINON: "SINON" >
+| <POUR: "POUR" >
+| <SI: "SI" >
+| <FSI: "FSI">
+| <ENT: "ENTIER" >
+| <RETOURNE: "RETOURNE" >
+| <TRUE: "VRAI" >
+| <TANTQUE: "TANTQUE" >
+| <CONST: "CONST">
+| <FALSE: "FAUX">
+| <FAIT: "FAIT">
+| <OR: "OU">
+| <AND: "ET">
+| <NON: "NON">
+| <FONCTION: "FONCTION">
+| <FFONCTION: "FFONCTION">
+| <PROGRAMME: "PROGRAMME" >
 | <FPROGRAMME: "FPROGRAMME" >
-| <PRINCIPAL : "PRINCIPAL">
-| <FPRINCIPAL : "FPRINCIPAL">
-| <ALORS : "ALORS">
-| <ECRIRE : "ECRIRE">
-| <LIRE : "LIRE">
-| <ALALIGNE : "ALALIGNE">
+| <PRINCIPAL: "PRINCIPAL">
+| <FPRINCIPAL: "FPRINCIPAL">
+| <ALORS: "ALORS">
+| <ECRIRE: "ECRIRE">
+| <LIRE: "LIRE">
+| <ALALIGNE: "ALALIGNE">
 
 }
 
@@ -199,9 +199,9 @@ void type() :{}
    <ENT> 	{decl.definirTypeVar(ENTIER);}		
  | <BOOLEEN>	{decl.definirTypeVar(BOOLEAN);}	
 }
-/*
- * Syntaxe des instructions.
- */
+
+/* Syntaxe des instructions */
+
 void suiteInstr() : {}
 {
 	instruction()
@@ -211,12 +211,10 @@ void suiteInstr() : {}
 
 void instruction() : {}
 {
-	affectation() | lecture() | ecriture()
+	affectation() | lecture() | ecriture() | iteration()
 }
 
-/*
- *affectation
- */
+/* affectation */
 void affectation() : {}
 {
 	 <ident>
@@ -247,9 +245,36 @@ void ecriture()  : {}
 	| <ALALIGNE> {yvm.aLaLigne();}
 }
 
-/*
- * Expression .
- */
+/* Iteration */
+void iteration() : {}
+{
+	<TANTQUE> {yvm.tantque();} expression() {expr.testExprBool(token);}
+	<FAIRE> {yvm.iffaux();} suiteInstr()
+	<FAIT> {yvm.fait();}
+}
+
+/* conditionnelle */
+
+void condition() : {}
+{
+	<SI> {yvm.si();} expression(){expr.testExprBool(token);} 
+	<ALORS>  {yvm.iffaux();} suiteInstr() {yvm.sinon();} suiteCondi()  
+}
+
+void suiteCondi() : {}
+{
+	<FSI>  {yvm.fsi();} | sinonCondi()
+}
+
+void sinonCondi() : {}
+{
+	<SINON> suiteInstr() 
+	<FSI> {yvm.fsi();}
+}
+
+
+/* Expression */
+
 void expression() : {}
 {
   simpleExpr() 

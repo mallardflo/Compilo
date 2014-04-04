@@ -23,6 +23,7 @@ public class Yaka implements Constantes {
       System.out.print(args[args.length-1] + ": ");
       try {
         input = new java.io.FileInputStream(args[args.length-1]+".yaka");
+        yvm = new YVMasm(args[args.length-1]);
       } catch (java.io.FileNotFoundException e) {
         System.out.println("Fichier introuvable.");
         return;
@@ -30,6 +31,7 @@ public class Yaka implements Constantes {
     } else if (args.length==0) {
       System.out.println("Lecture sur l'entree standard...");
       input = System.in;
+      yvm = new YVMasm("standard");
     } else {
       System.out.println("Usage: java Gram [fichier]");
       return;
@@ -39,7 +41,7 @@ public class Yaka implements Constantes {
       decl = new Declaration(tabIdent);
       expr = new Expression(tabIdent);
       analyseur = new Yaka(input);
-      yvm = new YVMasm(args[args.length-1]);
+
       analyseur.analyse();
       System.out.println("analyse syntaxique reussie!");
     } catch (ParseException e) {
@@ -82,33 +84,33 @@ SKIP :
 
 TOKEN :
 {
-  < BOOLEEN: "BOOLEEN" >
-| < VAR: "VAR" >
-| < FAIRE: "FAIRE" >
-| < SINON: "SINON" >
-| < POUR: "POUR" >
-| < SI: "SI" >
-| < FSI: "FSI">
-| < ENT: "ENTIER" >
-| < RETOURNE: "RETOURNE" >
-| < TRUE: "VRAI" >
-| < TANTQUE: "TANTQUE" >
-| <CONST : "CONST">
-| <FALSE : "FAUX">
-| <FAIT : "FAIT">
-| <OR : "OU">
-| <AND : "ET">
-| <NON : "NON">
-| <FONCTION : "FONCTION">
-| <FFONCTION  : "FFONCTION">
-| <PROGRAMME : "PROGRAMME" >
+  <BOOLEEN: "BOOLEEN" >
+| <VAR: "VAR" >
+| <FAIRE: "FAIRE" >
+| <SINON: "SINON" >
+| <POUR: "POUR" >
+| <SI: "SI" >
+| <FSI: "FSI">
+| <ENT: "ENTIER" >
+| <RETOURNE: "RETOURNE" >
+| <TRUE: "VRAI" >
+| <TANTQUE: "TANTQUE" >
+| <CONST: "CONST">
+| <FALSE: "FAUX">
+| <FAIT: "FAIT">
+| <OR: "OU">
+| <AND: "ET">
+| <NON: "NON">
+| <FONCTION: "FONCTION">
+| <FFONCTION: "FFONCTION">
+| <PROGRAMME: "PROGRAMME" >
 | <FPROGRAMME: "FPROGRAMME" >
-| <PRINCIPAL : "PRINCIPAL">
-| <FPRINCIPAL : "FPRINCIPAL">
-| <ALORS : "ALORS">
-| <ECRIRE : "ECRIRE">
-| <LIRE : "LIRE">
-| <ALALIGNE : "ALALIGNE">
+| <PRINCIPAL: "PRINCIPAL">
+| <FPRINCIPAL: "FPRINCIPAL">
+| <ALORS: "ALORS">
+| <ECRIRE: "ECRIRE">
+| <LIRE: "LIRE">
+| <ALALIGNE: "ALALIGNE">
 
 }
 
@@ -136,7 +138,7 @@ TOKEN  :
 /**************************************/
 void analyse() : {}
 {
-   <PROGRAMME> {yvm.entete();} <ident>
+   <PROGRAMME> {yvm.entete(); yvm.debut();} <ident> bloc()
    <FPROGRAMME>
    {yvm.queue();}
    
@@ -194,8 +196,8 @@ void declVar() : {}
 
 void type() :{}
 {
-   <ENT> 	{decl.definirTypeVar(ENTIER);fonc.setTypeRetour(ENTIER);}		
- | <BOOLEEN>	{decl.definirTypeVar(BOOLEAN);fonc.setTypeRetour(BOOLEAN);}	
+   <ENT> 	{decl.definirTypeVar(ENTIER);}		
+ | <BOOLEEN>	{decl.definirTypeVar(BOOLEAN);}	
 }
 /*
  * Syntaxe des instructions.
@@ -204,13 +206,12 @@ void suiteInstr() : {}
 {
 	instruction()
 	(";" {expr.clear();}  
-	  (instruction())?
-	)*
+	  (instruction())?)*
 }
 
 void instruction() : {}
 {
-	affectation() | lecture() | ecriture()
+	affectation() | lecture() | ecriture() | iteration()
 }
 
 /*
@@ -244,6 +245,16 @@ void ecriture()  : {}
 		} 
 	| {yvm.ecrireChaine(YakaTokenManager.chaineLue);} <chaine>) ")"
 	| <ALALIGNE> {yvm.aLaLigne();}
+}
+
+/*
+ * Iteration
+ */
+void iteration() : {}
+{
+	<TANTQUE> {yvm.tantque();} expression() {expr.testExprBool(token);}
+	<FAIRE> {yvm.iffaux();} suiteInstr()
+	<FAIT> {yvm.fait();}
 }
 
 /*
